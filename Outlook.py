@@ -39,9 +39,11 @@ email_file = st.file_uploader("Upload Excel file with 'Name' and 'Email'", type=
 
 # Email template input
 st.subheader("✍️ Email Template")
-st.markdown("""
-Write your email template here. Use `{Name}` to insert the recipient's first name.
-email_template = st.text_area("Email Template", height=200, value="Hello {Name},\n\nThis is a test email.\n\nBest regards,\nYour Name")
+email_template = st.text_area(
+    "Write your email template here. Use `{Name}` to insert the recipient's first name.",
+    height=200,
+    value="Hello {Name},\n\nThis is a test email.\n\nBest regards,\nYour Name"
+)
 
 def send_email(subject, body, to_email, cc_email="", read_receipt=False):
     msg = MIMEMultipart()
