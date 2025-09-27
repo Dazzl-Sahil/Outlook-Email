@@ -7,11 +7,52 @@ from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
 import os
 
-# ----- Load Outlook credentials from Streamlit secrets -----
-username = st.secrets["outlook_email"]
-password = st.secrets["outlook_password"]
+# Page config and title
+st.set_page_config(page_title="Simple Outlook Email Sender", layout="wide")
+st.title("📧 Simple Outlook Email Sender")
 
-# ----- Function to send email -----
+# Sidebar: Credentials & settings
+with st.sidebar:
+    st.header("⚙️ Email Settings")
+
+    username = st.text_input("Outlook Email", placeholder="yourname@outlook.com")
+    password = st.text_input("Outlook Password", type="password")
+
+    enable_cc = st.checkbox("Enable CC Email")
+    if enable_cc:
+        cc_email = st.text_input("CC Email", placeholder="cc@example.com")
+    else:
+        cc_email = ""
+
+    delay = st.slider("Delay between emails (seconds)", 1, 60, 5)
+    read_receipt = st.checkbox("Request Read Receipt")
+
+# Sample Excel download
+if st.button("📥 Download Sample Excel File"):
+    df_sample = pd.DataFrame({'Name': ['John Doe'], 'Email': ['john@example.com']})
+    df_sample.to_excel("sample_email_list.xlsx", index=False)
+    with open("sample_email_list.xlsx", "rb") as f:
+        st.download_button("Download Sample Excel", f, file_name="sample_email_list.xlsx")
+
+# Upload Excel file
+email_file = st.file_uploader("Upload Excel file with 'Name' and 'Email'", type=["xlsx"])
+
+# Email template input
+st.subheader("✍️ Email Template")
+st.markdown("""
+Write your email template here. Use `{Name}` to insert the recipient's first name.
+
+**Example:**
+
+Hello {Name},
+
+This is a test email.
+
+Best regards,
+Your Name
+""")
+email_template = st.text_area("Email Template", height=200, value="Hello {Name},\n\nThis is a test email.\n\nBest regards,\nYour Name")
+
 def send_email(subject, body, to_email, cc_email="", read_receipt=False):
     msg = MIMEMultipart()
     msg['From'] = username
@@ -37,10 +78,9 @@ def send_email(subject, body, to_email, cc_email="", read_receipt=False):
         server.quit()
         return True
     except Exception as e:
-        print(f"Failed to send email to {to_email}: {e}")
+        st.error(f"Failed to send email to {to_email}: {e}")
         return False
 
-# ----- Email logging -----
 def log_email(name, email, subject, status, timestamp):
     log_file = 'email_log.csv'
     entry = pd.DataFrame([{
@@ -57,58 +97,30 @@ def log_email(name, email, subject, status, timestamp):
         updated = entry
     updated.to_csv(log_file, index=False)
 
-# ----- Main UI -----
-st.set_page_config(page_title="Outlook Email Sender", layout="wide")
-st.title("📧 Automated Outlook Email Sender")
-
-# Sample file download button
-if st.button("📥 Download Sample Excel"):
-    df_sample = pd.DataFrame({'Name': ['John Doe'], 'Email': ['john@example.com']})
-    df_sample.to_excel("sample_email_list.xlsx", index=False)
-    with open("sample_email_list.xlsx", "rb") as f:
-        st.download_button("Download Sample Excel", f, file_name="sample_email_list.xlsx")
-
-# File uploads
-email_file = st.file_uploader("📄 Upload Excel File with 'Name' and 'Email' columns", type=["xlsx"])
-template_file = st.file_uploader("📝 Upload Email Template (.txt file)", type=["txt"])
-
-# Delay slider
-delay = st.slider("⏱️ Delay Between Emails (seconds)", 1, 60, 5)
-
-# Read receipt toggle
-read_receipt = st.checkbox("📩 Request Read Receipt")
-
-# CC enable toggle + CC email input
-enable_cc = st.checkbox("Enable CC Email")
-if enable_cc:
-    cc_email = st.text_input("CC Email", value=username, help="Enter email to CC on all emails.")
-else:
-    cc_email = ""
-
-# Start button
 if st.button("🚀 Start Sending Emails"):
-
-    if not email_file or not template_file:
-        st.error("Please upload both the Excel file and the email template.")
+    if not username or not password:
+        st.error("Please enter your Outlook email and password.")
+        st.stop()
+    if not email_file:
+        st.error("Please upload your Excel file.")
+        st.stop()
+    if not email_template.strip():
+        st.error("Please enter an email template.")
         st.stop()
 
     try:
         df = pd.read_excel(email_file)
         df.columns = df.columns.str.strip()
-
         if 'Name' not in df.columns or 'Email' not in df.columns:
-            st.error("The Excel file must contain 'Name' and 'Email' columns.")
+            st.error("Excel file must contain 'Name' and 'Email' columns.")
             st.stop()
 
-        template = template_file.read().decode("utf-8")
-
-        # Load progress of sent emails (to resume)
+        # Track progress - emails already sent
         progress_path = 'sent_emails.csv'
         sent_emails = set()
         if os.path.exists(progress_path):
             sent_emails = set(pd.read_csv(progress_path)['Email'].tolist())
 
-        # Filter out already sent emails
         df = df[~df['Email'].isin(sent_emails)].reset_index(drop=True)
 
         failed = []
@@ -120,7 +132,7 @@ if st.button("🚀 Start Sending Emails"):
             email = row['Email']
 
             subject = f"Hello {full_name}, Important Information"
-            body = template.replace("{Name}", first_name)
+            body = email_template.replace("{Name}", first_name)
             timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 
             with st.spinner(f"Sending email {i+1}/{total} to {email}..."):
@@ -129,7 +141,6 @@ if st.button("🚀 Start Sending Emails"):
                 log_email(full_name, email, subject, status, timestamp)
 
                 if success:
-                    # Append to sent_emails.csv
                     with open(progress_path, "a") as f:
                         f.write(f"{email}\n")
                 else:
@@ -149,7 +160,7 @@ if st.button("🚀 Start Sending Emails"):
     except Exception as e:
         st.error(f"Error: {e}")
 
-# ----- Email log dashboard -----
+# Email log dashboard
 st.markdown("---")
 st.subheader("📊 Email Log Dashboard")
 
