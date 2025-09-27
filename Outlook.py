@@ -21,9 +21,7 @@ with st.sidebar:
 
     st.markdown("---")
     delay = st.slider("Delay between emails (in seconds)", 1, 60, 5)
-
     read_receipt = st.checkbox("Request Read Receipt")
-
     enable_cc = st.checkbox("Enable CC Email")
     cc_email = st.text_input("CC Email", placeholder="someone@domain.com") if enable_cc else ""
 
@@ -52,8 +50,14 @@ if email_file:
     except Exception as e:
         st.error(f"Error reading Excel file: {e}")
 
-# ------------------ Email Template ------------------
-st.subheader("✍️ Email Template")
+# ------------------ Email Subject & Template ------------------
+st.subheader("✍️ Email Subject and Template")
+
+email_subject = st.text_input(
+    "Enter the subject line (you can use {Name} for full name):",
+    value="Hello {Name}, Important Information"
+)
+
 email_template = st.text_area(
     "Write your email. Use `{Name}` to insert first name.",
     height=200,
@@ -121,8 +125,8 @@ if st.button("🚀 Start Sending Emails"):
     if df is None or df.empty:
         st.error("Upload a valid Excel file with 'Name' and 'Email'.")
         st.stop()
-    if not email_template.strip():
-        st.error("Email template cannot be empty.")
+    if not email_template.strip() or not email_subject.strip():
+        st.error("Subject and Email Template cannot be empty.")
         st.stop()
 
     progress_file = "sent_emails.csv"
@@ -140,7 +144,7 @@ if st.button("🚀 Start Sending Emails"):
         first_name = full_name.split()[0] if isinstance(full_name, str) else ""
         to_email = row["Email"]
 
-        subject = f"Hello {full_name}, Important Information"
+        subject = email_subject.replace("{Name}", full_name)
         body = email_template.replace("{Name}", first_name)
         timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 
